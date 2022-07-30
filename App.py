@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from ctypes import alignment
 from unittest.mock import patch
 from pandas_datareader import data, wb
 import datetime
@@ -19,17 +20,21 @@ from matplotlib.figure import Figure
 import random
 import numpy as np
 from flask_cors import CORS
+from pymongo import MongoClient
 
-app = Flask(__name__)
-CORS(app)
+# connect to MongoDB, change the << MONGODB URL >> to reflect your own connection string
+client = MongoClient('mongodb+srv://m001-student:rasolive0532291@sandbox.wuewv.mongodb.net/lims?retryWrites=true&w=majority')
 
-@app.route("/")
+web_app = Flask(__name__)
+CORS(web_app)
+
+@web_app.route("/")
 def index():
         return render_template('index.htm')
 
 
 
-@app.route("/Grafico", methods= ['GET', 'POST'])
+@web_app.route("/Grafico", methods= ['GET', 'POST'])
 def teste():
         
         if request.method == "POST":
@@ -51,18 +56,67 @@ def teste():
              
 
         
-@app.route("/plot_2", methods= ['GET', 'POST'])
-def plot_2():
-                df = px.data.gapminder()
-                fig = px.scatter(df.query("year==2007"), x="gdpPercap", y="lifeExp",
-                        size="pop", color="continent",
-                        hover_name="country", log_x=True, size_max=60)
-                fig.update_layout(width=700, height=400)
-                plot_2 = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+@web_app.route("/statusLotes", methods= ['GET', 'POST'])
+def statusLotes():
+                database = "lims"
+                colection = 'lotes'
+                db = client[database]
+                colection = db[colection].find()
+                df = pd.DataFrame(list(colection))
+                df2 = pd.DataFrame()
+                statusLote = df['statusLote'].unique().tolist()
+                df2['statusLote'] = df['statusLote'].unique()
+                df2['quantidade'] = ''
+                listaStatusLote = db['listas'].find({'name': "Status Lote"}, {'_id': 0, 'lista': 1})
+                listaStatusLote = pd.DataFrame(list(listaStatusLote))
+                listaStatusLote = pd.DataFrame(list(listaStatusLote['lista'].iat[0]))
+                for status in statusLote:
+                        df2['quantidade'][df2['statusLote'] == status] = len(df['statusLote'][df['statusLote'] == status])
+                        df2['statusLote'][df2['statusLote'] == status] = listaStatusLote['valor'][listaStatusLote['chave'] == status].iat[0]
 
-                return plot_2
+                fig = px.bar(df2, x="statusLote", y="quantidade", text="quantidade", color='statusLote',
+                labels={
+                                "statusLote": "Status",
+                                "quantidade": "Quantidade de Lotes"
+                                },)
+                fig.update_traces( marker_line_color='rgb(8,48,107)',
+                                marker_line_width=1.5, opacity=0.6, showlegend=False)
+                fig.update_layout(title_text="Status dos Lotes", title_x=0.5)
+                statusLotes = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-@app.route("/matplot.png/<rang>")
+                return statusLotes
+
+@web_app.route("/statusMateriais", methods= ['GET', 'POST'])
+def statusMateriais():
+                database = "lims"
+                colection = 'materiais'
+                db = client[database]
+                colection = db[colection].find()
+                df = pd.DataFrame(list(colection))
+                df2 = pd.DataFrame()
+                statusMaterial= df['statusMaterial'].unique().tolist()
+                df2['statusMaterial'] = df['statusMaterial'].unique()
+                df2['quantidade'] = ''
+                listaStatusMaterial = db['listas'].find({'name': "Status Material"}, {'_id': 0, 'lista': 1})
+                listaStatusMaterial = pd.DataFrame(list(listaStatusMaterial))
+                listaStatusMaterial = pd.DataFrame(list(listaStatusMaterial['lista'].iat[0]))
+                for status in statusMaterial:
+                        df2['quantidade'][df2['statusMaterial'] == status] = len(df['statusMaterial'][df['statusMaterial'] == status])
+                        df2['statusMaterial'][df2['statusMaterial'] == status] = listaStatusMaterial['valor'][listaStatusMaterial['chave'] == status].iat[0]
+                df2
+                fig = px.bar(df2, x="statusMaterial", y="quantidade", text="quantidade", color='statusMaterial',
+                labels={
+                                "statusMaterial": "Status",
+                                "quantidade": "Quantidade de Materiais"
+                                },)
+                fig.update_traces( marker_line_color='rgb(8,48,107)',
+                                marker_line_width=1.5, opacity=0.6, showlegend=False)
+                fig.update_layout(title_text="Status dos Materiais", title_x=0.5)
+                statusMateriais = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+                return statusMateriais
+
+@web_app.route("/matplot.png/<rang>")
 def plot_svg(rang):
         fig = Figure()
         axis = fig.add_subplot(1, 1, 1)
@@ -74,7 +128,7 @@ def plot_svg(rang):
 
         return Response(output.getvalue(), mimetype="image/png")       
 
-@app.route("/matplot2.png")
+@web_app.route("/matplot2.png")
 def plot_png():
         fig = Figure()
         axis = fig.add_subplot(1, 1, 1)
@@ -85,7 +139,7 @@ def plot_png():
 
         return Response(output.getvalue(), mimetype="image/png")
 
-@app.route("/matplot3.png")
+@web_app.route("/matplot3.png")
 def plot_pngcolormash():
         np.random.seed(19680801)
         Z = np.random.rand(6, 10)
@@ -104,7 +158,7 @@ def plot_pngcolormash():
 
         return Response(output.getvalue(), mimetype="image/png")  
 
-@app.route("/soma", methods= ['GET', 'POST'])
+@web_app.route("/soma", methods= ['GET', 'POST'])
 def soma():
         if request.method == "POST":
                 a = float(request.form.get("a"))
@@ -117,5 +171,5 @@ def soma():
                 return render_template('index.htm',Resposta = x)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    web_app.run(host='0.0.0.0', debug=True, threaded=True)
 
