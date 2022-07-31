@@ -21,6 +21,7 @@ import random
 import numpy as np
 from flask_cors import CORS
 from pymongo import MongoClient
+from urllib.request import urlopen
 
 # connect to MongoDB, change the << MONGODB URL >> to reflect your own connection string
 client = MongoClient('mongodb+srv://m001-student:rasolive0532291@sandbox.wuewv.mongodb.net/lims?retryWrites=true&w=majority')
@@ -64,12 +65,13 @@ def statusLotes():
                 colection = db[colection].find()
                 df = pd.DataFrame(list(colection))
                 df2 = pd.DataFrame()
-                statusLote = df['statusLote'].unique().tolist()
-                df2['statusLote'] = df['statusLote'].unique()
-                df2['quantidade'] = ''
                 listaStatusLote = db['listas'].find({'name': "Status Lote"}, {'_id': 0, 'lista': 1})
                 listaStatusLote = pd.DataFrame(list(listaStatusLote))
                 listaStatusLote = pd.DataFrame(list(listaStatusLote['lista'].iat[0]))
+                statusLote = listaStatusLote['chave'].unique().tolist()
+                df2['statusLote'] = listaStatusLote['chave'].unique()
+                df2['quantidade'] = ''
+
                 for status in statusLote:
                         df2['quantidade'][df2['statusLote'] == status] = len(df['statusLote'][df['statusLote'] == status])
                         df2['statusLote'][df2['statusLote'] == status] = listaStatusLote['valor'][listaStatusLote['chave'] == status].iat[0]
@@ -82,6 +84,7 @@ def statusLotes():
                 fig.update_traces( marker_line_color='rgb(8,48,107)',
                                 marker_line_width=1.5, opacity=0.6, showlegend=False)
                 fig.update_layout(title_text="Status dos Lotes", title_x=0.5)
+                
                 statusLotes = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
                 return statusLotes
@@ -94,27 +97,76 @@ def statusMateriais():
                 colection = db[colection].find()
                 df = pd.DataFrame(list(colection))
                 df2 = pd.DataFrame()
-                statusMaterial= df['statusMaterial'].unique().tolist()
-                df2['statusMaterial'] = df['statusMaterial'].unique()
-                df2['quantidade'] = ''
                 listaStatusMaterial = db['listas'].find({'name': "Status Material"}, {'_id': 0, 'lista': 1})
                 listaStatusMaterial = pd.DataFrame(list(listaStatusMaterial))
                 listaStatusMaterial = pd.DataFrame(list(listaStatusMaterial['lista'].iat[0]))
+                statusMaterial= listaStatusMaterial['chave'].unique().tolist()
+                df2['statusMaterial'] = listaStatusMaterial['chave'].unique()
+                df2['quantidade'] = ''
                 for status in statusMaterial:
                         df2['quantidade'][df2['statusMaterial'] == status] = len(df['statusMaterial'][df['statusMaterial'] == status])
                         df2['statusMaterial'][df2['statusMaterial'] == status] = listaStatusMaterial['valor'][listaStatusMaterial['chave'] == status].iat[0]
                 df2
-                fig = px.bar(df2, x="statusMaterial", y="quantidade", text="quantidade", color='statusMaterial',
-                labels={
-                                "statusMaterial": "Status",
-                                "quantidade": "Quantidade de Materiais"
-                                },)
+                fig = px.pie(df2, names="statusMaterial", values="quantidade", hole=.7)
+
+                # fig = px.bar(df2, x="statusMaterial", y="quantidade", text="quantidade", color='statusMaterial',
+                # labels={
+                #                 "statusMaterial": "Status",
+                #                 "quantidade": "Quantidade de Materiais"
+                #                 },)
                 fig.update_traces( marker_line_color='rgb(8,48,107)',
-                                marker_line_width=1.5, opacity=0.6, showlegend=False)
-                fig.update_layout(title_text="Status dos Materiais", title_x=0.5)
+                                marker_line_width=1.5, opacity=0.8)
+                fig.update_layout(title_text="Status dos Materiais", title_x=0.5,  legend=dict(
+                                                
+                                                font=dict(size= 10)
+                                                ))
+             
                 statusMateriais = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
                 return statusMateriais
+
+
+@web_app.route("/fornecedoresMap", methods= ['GET', 'POST'])
+def fornecedoresMap():
+                with urlopen('https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson') as response:
+                        Brazil = json.load(response) # Javascrip object notation 
+                state_id_map = {}
+                for feature in Brazil ['features']:
+                        feature['id'] = feature['properties']['name']
+                        state_id_map[feature['properties']['sigla']] = feature['id']
+                database = "lims"
+                colection = 'suppliers'
+                db = client[database]
+                colection = db[colection].find({'active': True})
+                df = pd.DataFrame(list(colection))
+                colection = 'estados'
+                db = client[database]
+                colection = db[colection].find({'active': True})
+                df2 = pd.DataFrame(list(colection))
+                df2['quantidade'] =''
+                estados = df2['Sigla'].unique().tolist()
+                for estado in estados:
+                        df2['quantidade'][df2['Sigla'] == estado] = len(df['estado'][df['estado'] == estado])
+
+                fig = px.choropleth(
+                df2, #soybean database
+                locations = 'Estado', #define the limits on the map/geography
+                geojson = Brazil, #shape information
+                color = "quantidade", #defining the color of the scale through the database
+                hover_name = 'Estado', #the information in the box
+                hover_data =["quantidade","Longitude","Latitude"],
+                title = "Fornecedores por Estado", #title of the map
+                )
+                fig.update_geos(fitbounds = "locations", visible = True)
+                fig.update_layout(height=500, margin={"r":0,"t":0,"l":0,"b":0})
+                fig.update_layout(legend=dict(yanchor="bottom", y=0.9, xanchor="right", x=1,
+                                                
+                                               font=dict(size= 10)
+                                               ))
+                fig.update_traces(showlegend=True)
+                fornecedoresMap = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+                return fornecedoresMap
 
 @web_app.route("/matplot.png/<rang>")
 def plot_svg(rang):
