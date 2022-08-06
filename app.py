@@ -24,7 +24,7 @@ from pymongo import MongoClient
 from urllib.request import urlopen
 
 # connect to MongoDB, change the << MONGODB URL >> to reflect your own connection string
-client = MongoClient('mongodb+srv://m001-student:rasolive0532291@sandbox.wuewv.mongodb.net/lims?retryWrites=true&w=majority')
+client = MongoClient(os.environ.get('CONN_STRING'))
 
 web_app = Flask(__name__)
 CORS(web_app)
@@ -35,34 +35,34 @@ def index():
 
 
 
-@web_app.route("/Grafico", methods= ['GET', 'POST'])
-def teste():
+# @web_app.route("/Grafico", methods= ['GET', 'POST'])
+# def teste():
         
-        if request.method == "POST":
+#         if request.method == "POST":
                
-                body = request.get_json()
-                print(body["name"])
-                name = body["name"]
-                ano = int(body["ano"])
-                i = datetime.datetime(ano, 1, 1)
-                f = datetime.datetime(2021,1, 22)
-                Stock = data.DataReader(name, 'yahoo', i, f)
+#                 body = request.get_json()
+#                 print(body["name"])
+#                 name = body["name"]
+#                 ano = int(body["ano"])
+#                 i = datetime.datetime(ano, 1, 1)
+#                 f = datetime.datetime(2021,1, 22)
+#                 Stock = data.DataReader(name, 'yahoo', i, f)
     
-                fig = go.Figure(data=go.Scatter(x= Stock.index, y=Stock["Close"]))
+#                 fig = go.Figure(data=go.Scatter(x= Stock.index, y=Stock["Close"]))
      
-                plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+#                 plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
             
-                return plot_json
+#                 return plot_json
              
 
         
 @web_app.route("/statusLotes", methods= ['GET', 'POST'])
 def statusLotes():
-                database = "lims"
+                database = os.environ.get('MONGODB_SCHEMA')
                 colection = 'lotes'
                 db = client[database]
-                colection = db[colection].find()
+                colection = db[colection].find({'active': True})
                 df = pd.DataFrame(list(colection))
                 df2 = pd.DataFrame()
                 listaStatusLote = db['listas'].find({'name': "Status Lote"}, {'_id': 0, 'lista': 1})
@@ -91,10 +91,10 @@ def statusLotes():
 
 @web_app.route("/statusMateriais", methods= ['GET', 'POST'])
 def statusMateriais():
-                database = "lims"
+                database = os.environ.get('MONGODB_SCHEMA')
                 colection = 'materiais'
                 db = client[database]
-                colection = db[colection].find()
+                colection = db[colection].find({'active': True})
                 df = pd.DataFrame(list(colection))
                 df2 = pd.DataFrame()
                 listaStatusMaterial = db['listas'].find({'name': "Status Material"}, {'_id': 0, 'lista': 1})
@@ -125,6 +125,77 @@ def statusMateriais():
 
                 return statusMateriais
 
+@web_app.route("/userProfiles", methods= ['GET', 'POST'])
+def userProfiles():
+                database = os.environ.get('MONGODB_SCHEMA')
+                colection = 'users'
+                db = client[database]
+                colection = db[colection].find({'active': True})
+                df = pd.DataFrame(list(colection))
+                df2 = pd.DataFrame()
+                listaUserProfile = db['listas'].find({'name': "UserProfile"}, {'_id': 0, 'lista': 1})
+
+                listaUserProfile = pd.DataFrame(list(listaUserProfile))
+
+                listaUserProfile = pd.DataFrame(list(listaUserProfile['lista'].iat[0]))
+                userProfiles = listaUserProfile['chave'].unique().tolist()
+                df2['userProfiles'] = listaUserProfile['chave'].unique()
+                df2['Perfil'] = listaUserProfile['valor'].unique()
+                df2['Quantidade'] = ''
+
+                for profile in userProfiles:
+                        qtd = 0
+                        for linha in df.index:
+                        
+                                
+                                res = [x for x in df['role'][linha] if x['perfil'] == profile]
+                                if len(res) > 0:
+                                        qtd = qtd + 1
+
+                        df2['Quantidade'][df2['userProfiles'] == profile] = qtd
+                
+                fig = px.line(df2, x="Perfil", y="Quantidade", text="Quantidade")
+                fig.update_layout(title_text="Usuários por Perfil", title_x=0.5)
+                fig.update_traces(textposition="bottom right")
+             
+                userProfiles = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+                return userProfiles
+
+
+@web_app.route("/suppliersMaterials", methods= ['GET', 'POST'])
+def suppliersMaterials():
+                database = os.environ.get('MONGODB_SCHEMA')
+                colection = 'suppliers'
+                db = client[database]
+                colection = db[colection].find({'active': True})
+                suppliers = pd.DataFrame(list(colection))
+                suppliers = suppliers[['_id', 'name']].drop_duplicates()
+                suppliers['Quantidade'] =''
+                database = os.environ.get('MONGODB_SCHEMA')
+                colection = 'materiais'
+                db = client[database]
+                colection = db[colection].find({'active': True})
+                materiais = pd.DataFrame(list(colection))
+                materiais['fornecedor'][1].count(2)
+                for id in suppliers['_id'].to_list():
+                        qtd = 0
+                        for linha in materiais.index:                  
+                                
+                                res = materiais['fornecedor'][linha].count(id)        
+                                qtd = qtd + res
+
+                        suppliers['Quantidade'][suppliers['_id'] == id] = qtd
+                fig = px.bar(suppliers, x="Quantidade", y="name", orientation='h',labels={
+                                "name": "Fornecedor",
+                                "Quantidade": "Quantidade de materiais"
+                                })
+                fig.update_layout(title_text="Materiais por Fornecedor", title_x=0.5)
+             
+                suppliersMaterials = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+                return suppliersMaterials
+
 
 @web_app.route("/fornecedoresMap", methods= ['GET', 'POST'])
 def fornecedoresMap():
@@ -134,7 +205,7 @@ def fornecedoresMap():
                 for feature in Brazil ['features']:
                         feature['id'] = feature['properties']['name']
                         state_id_map[feature['properties']['sigla']] = feature['id']
-                database = "lims"
+                database = os.environ.get('MONGODB_SCHEMA')
                 colection = 'suppliers'
                 db = client[database]
                 colection = db[colection].find({'active': True})
@@ -168,59 +239,30 @@ def fornecedoresMap():
 
                 return fornecedoresMap
 
-@web_app.route("/matplot.png/<rang>")
-def plot_svg(rang):
-        fig = Figure()
-        axis = fig.add_subplot(1, 1, 1)
-        x_points = range(int(rang))
-        axis.plot(x_points, [random.randint(1, 30) for x in x_points])
+# @web_app.route("/matplot.png/<rang>")
+# def plot_svg(rang):
+#         fig = Figure()
+#         axis = fig.add_subplot(1, 1, 1)
+#         x_points = range(int(rang))
+#         axis.plot(x_points, [random.randint(1, 30) for x in x_points])
 
-        output = io.BytesIO()
-        FigureCanvasAgg(fig).print_png(output)
+#         output = io.BytesIO()
+#         FigureCanvasAgg(fig).print_png(output)
 
-        return Response(output.getvalue(), mimetype="image/png")       
+#         return Response(output.getvalue(), mimetype="image/png")       
 
-@web_app.route("/matplot2.png")
-def plot_png():
-        fig = Figure()
-        axis = fig.add_subplot(1, 1, 1)
-        axis.plot([1, 2, 3, 4], [1, 4, 9, 16])
+# @web_app.route("/matplot2.png")
+# def plot_png():
+#         fig = Figure()
+#         axis = fig.add_subplot(1, 1, 1)
+#         axis.plot([1, 2, 3, 4], [1, 4, 9, 16])
 
-        output = io.BytesIO()
-        FigureCanvasAgg(fig).print_png(output)
+#         output = io.BytesIO()
+#         FigureCanvasAgg(fig).print_png(output)
 
-        return Response(output.getvalue(), mimetype="image/png")
+#         return Response(output.getvalue(), mimetype="image/png")
 
-@web_app.route("/matplot3.png")
-def plot_pngcolormash():
-        np.random.seed(19680801)
-        Z = np.random.rand(6, 10)
-        x = np.arange(-0.5, 10, 1)  # len = 11
-        y = np.arange(4.5, 11, 1)  # len = 7
 
-        fig, axis = plt.subplots()
-        axis.pcolormesh(x, y, Z)
-
-        # fig = Figure()
-        # axis = fig.add_subplot(1, 1, 1)
-        # axis.plot([1, 2, 3, 4], [1, 4, 9, 16])
-
-        output = io.BytesIO()
-        FigureCanvasAgg(fig).print_png(output)
-
-        return Response(output.getvalue(), mimetype="image/png")  
-
-@web_app.route("/soma", methods= ['GET', 'POST'])
-def soma():
-        if request.method == "POST":
-                a = float(request.form.get("a"))
-                b = float(request.form.get("b"))
-                c = float(request.form.get("c"))
-                
-
-                x = f' a soma de {a} + {b} + {c} é igual a {a + b + c}'
-
-                return render_template('index.htm',Resposta = x)
 
 if __name__ == '__main__':
     web_app.run(host='0.0.0.0', debug=True, threaded=True)
