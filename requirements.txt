@@ -9,3 +9,4 @@ numpy==1.22.2
 pymongo==4.1.1
 dnspython==2.2.0
 gunicorn==20.1.0
+python-dotenv==0.20.0
