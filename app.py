@@ -3,7 +3,8 @@
 from ctypes import alignment
 from unittest.mock import patch
 from pandas_datareader import data, wb
-import datetime
+from datetime import datetime  
+from datetime import timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 import json
@@ -32,38 +33,16 @@ CORS(web_app)
 @web_app.route("/")
 def index():
         return render_template('index.htm')
-
-
-
-# @web_app.route("/Grafico", methods= ['GET', 'POST'])
-# def teste():
-        
-#         if request.method == "POST":
-               
-#                 body = request.get_json()
-#                 print(body["name"])
-#                 name = body["name"]
-#                 ano = int(body["ano"])
-#                 i = datetime.datetime(ano, 1, 1)
-#                 f = datetime.datetime(2021,1, 22)
-#                 Stock = data.DataReader(name, 'yahoo', i, f)
-    
-#                 fig = go.Figure(data=go.Scatter(x= Stock.index, y=Stock["Close"]))
-     
-#                 plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-            
-#                 return plot_json
-             
-
         
 @web_app.route("/statusLotes", methods= ['GET', 'POST'])
 def statusLotes():
+                today = datetime.now()
                 database = os.environ.get('MONGODB_SCHEMA')
                 colection = 'lotes'
                 db = client[database]
                 colection = db[colection].find({'active': True})
                 df = pd.DataFrame(list(colection))
+                df['statusLote'][df['validade'] <= str(today)] = 'V'
                 df2 = pd.DataFrame()
                 listaStatusLote = db['listas'].find({'name': "Status Lote"}, {'_id': 0, 'lista': 1})
                 listaStatusLote = pd.DataFrame(list(listaStatusLote))
@@ -238,6 +217,40 @@ def fornecedoresMap():
                 fornecedoresMap = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
                 return fornecedoresMap
+
+
+@web_app.route("/prazoValidade", methods= ['GET', 'POST'])
+def prazoValidade():
+                today = datetime.now()
+                database = os.environ.get('MONGODB_SCHEMA')
+                colection = 'lotes'
+                db = client[database]
+                colection = db[colection].find({'active': True})
+                df = pd.DataFrame(list(colection))
+                df['prazoValidade'] = ''
+                df['prazoValidade'][df['validade'] <= str(today + timedelta(days=120))] = '120 dias'
+                df['prazoValidade'][df['validade'] <= str(today + timedelta(days=90))] = '90 dias'
+                df['prazoValidade'][df['validade'] <= str(today + timedelta(days=60))] = '60 dias'
+                df['prazoValidade'][df['validade'] <= str(today + timedelta(days=30))] = '30 dias'
+                df['prazoValidade'][df['validade'] <= str(today)] = ''
+                df2 = pd.DataFrame()
+                listaValidade = ('30 dias', '60 dias', '90 dias', '120 dias')
+                df2['prazoValidade'] = listaValidade
+                df2['quantidade'] = ''
+                for validade in listaValidade:
+                        df2['quantidade'][df2['prazoValidade'] == validade] = len(df['prazoValidade'][df['prazoValidade'] == validade])
+                fig = px.bar(df2, x="prazoValidade", y="quantidade", text="quantidade", color='prazoValidade',
+                labels={
+                                "prazoValidade": "Pazo",
+                                "quantidade": "Quantidade de Lotes"
+                                },)
+                fig.update_traces( marker_line_color='rgb(8,48,107)',
+                                marker_line_width=1.5, opacity=0.6, showlegend=False)
+                fig.update_layout(title_text="Lotes a Vencer nos próximos dias", title_x=0.5)
+                prazoValidade = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+                return prazoValidade
+
 
 # @web_app.route("/matplot.png/<rang>")
 # def plot_svg(rang):
