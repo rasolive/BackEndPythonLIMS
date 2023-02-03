@@ -44,6 +44,10 @@ CORS(web_app)
 @web_app.route("/")
 def index():
         return render_template('index.htm')
+
+@web_app.route("/health", methods= ['GET', 'POST'])
+def health():
+        return {'health':'true'}
         
 @web_app.route("/statusLotes", methods= ['GET', 'POST'])
 def statusLotes():
@@ -82,7 +86,9 @@ def statusLotes():
 
                         return statusLotes
                 else:
-                        return {'respone':'token inválido'}
+                        return Response({'respone':'token inválido'},
+                        mimetype="application/json",
+                        status=401)
 
 @web_app.route("/statusMateriais", methods= ['GET', 'POST'])
 def statusMateriais():
@@ -123,7 +129,9 @@ def statusMateriais():
 
                         return statusMateriais
                 else:
-                        return {'respone':'token inválido'}
+                        return Response({'respone':'token inválido'},
+                        mimetype="application/json",
+                        status=401)
 
 @web_app.route("/userProfiles", methods= ['GET', 'POST'])
 def userProfiles():
@@ -165,7 +173,9 @@ def userProfiles():
 
                         return userProfiles
                 else:
-                        return {'respone':'token inválido'}
+                        return Response({'respone':'token inválido'},
+                        mimetype="application/json",
+                        status=401)
 
 
 @web_app.route("/suppliersMaterials", methods= ['GET', 'POST'])
@@ -204,7 +214,9 @@ def suppliersMaterials():
 
                         return suppliersMaterials
                 else:
-                        return {'respone':'token inválido'}
+                        return Response({'respone':'token inválido'},
+                        mimetype="application/json",
+                        status=401)
 
 
 @web_app.route("/fornecedoresMap", methods= ['GET', 'POST'])
@@ -252,7 +264,9 @@ def fornecedoresMap():
 
                         return fornecedoresMap
                 else:
-                        return {'respone':'token inválido'}
+                        return Response({'respone':'token inválido'},
+                        mimetype="application/json",
+                        status=401)
 
 
 @web_app.route("/prazoValidade", methods= ['GET', 'POST'])
@@ -290,7 +304,9 @@ def prazoValidade():
 
                         return prazoValidade
                 else:
-                        return {'respone':'token inválido'}
+                        return Response({'respone':'token inválido'},
+                        mimetype="application/json",
+                        status=401)
 
 # @web_app.route("/matplot.png/<rang>")
 # def plot_svg(rang):
